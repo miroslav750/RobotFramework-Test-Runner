@@ -9,6 +9,37 @@ import shutil
 import sys
 
 
+class Logs():
+    """class for storing simple test results in temp file"""
+
+    def __init__(self):
+        pass
+
+#  save desired text to temp.txt file
+    def SaveToTemp(self, text):
+        tmp = open("temp.txt","a+")
+        tmp.write(text)
+        tmp.close()
+
+#  delete temp file if exists on each run and proper exit
+    def DeleteTempFile(self):
+        try:
+            os.remove("temp.txt")
+        except OSError:
+            pass
+
+# read temp file
+    def ReadTemp(self):
+        # open file for reading
+        try:
+            with open("temp.txt","r") as tmp:
+                all_results = tmp.read()
+            result = all_results.replace(".robot", "").replace("0"," - PASS").replace("1"," - FAIL")
+            return result
+            # print(result)
+        except FileNotFoundError:
+            pass
+
 class runner():
 
     def __init__(self):
@@ -35,7 +66,6 @@ class runner():
                 continue
         return tests
 
-
 class gui(wx.Frame):
     X = 1280
     Y = 720
@@ -45,6 +75,7 @@ class gui(wx.Frame):
     SELECTION = []
     OUTPUT_PATH = "OUTPUT"
     version = "v 1.0"
+    RESULT_DATA = "It looks empty here"
 
     def __init__(self, parent, title):
         super().__init__(parent, title=title, size = (self.X,self.Y))
@@ -100,20 +131,21 @@ class gui(wx.Frame):
 
     # exit function
     def Exit(self, e):
+        Logs.DeleteTempFile(self)
         self.Close()
 
-    #  set variable used for kterminating chrome.exe process, also changes icon
+    #  set variable used for terminating chrome.exe process, also changes icon
     def ChromeKillSetter(self, e):
         if self.CHROME_KILL == True:
             self.CHROME_KILL = False
-            print("chrome status:",self.CHROME_KILL)
+            # print("chrome status:",self.CHROME_KILL)
             chromeIco = wx.Bitmap("chromeOFF.png", wx.BITMAP_TYPE_PNG)
             self.chromeTool.SetNormalBitmap(chromeIco)
             self.toolbar.Realize()
             self.toolbar.Refresh()
         else:
             self.CHROME_KILL =True
-            print("chrome status:",self.CHROME_KILL)
+            # print("chrome status:",self.CHROME_KILL)
             chromeIco = wx.Bitmap("chromeON.png", wx.BITMAP_TYPE_PNG)
             self.chromeTool.SetNormalBitmap(chromeIco)
             self.toolbar.Realize()
@@ -121,7 +153,7 @@ class gui(wx.Frame):
 
     def SelectAll(self, e):
         for i in range(self.LB.GetCount()):
-            print(i)
+            # print(i)
             self.LB.SetSelection(i)
 
     def DeSelect(self, e):
@@ -136,26 +168,38 @@ class gui(wx.Frame):
         self.path = runner.GetFolder(self)
         self.TEST_LIST = runner.GetTests(self, self.path)
         self.ReloadList()
-        print(self.TEST_LIST)
+        # print(self.TEST_LIST)
 
     # set output folder, if not set, default one is used
     def SetOutput(self, e):
         self.OUTPUT_PATH = runner.GetFolder(self)
         self.outputInfo.SetLabel("output folder: {}".format(self.OUTPUT_PATH))
-        print(self.OUTPUT_PATH)
+        # print(self.OUTPUT_PATH)
+
+    # show results after test run
+    def ShowResultlDialog(self):
+        if Logs.ReadTemp(self) is not None:
+            self.RESULT_DATA = Logs.ReadTemp(self)
+        # print(self.RESULT_DATA)
+        wx.MessageBox(self.RESULT_DATA, '- RESULTS -', wx.OK | wx.ICON_INFORMATION)
 
     # run selected tests and kill chrome if set to True.
     def Run(self, e):
+        Logs.DeleteTempFile(self)
         self.SELECTION = self.LB.GetSelections()
         for item in self.SELECTION:
-            print(self.CHROME_KILL)
+            test_name = (self.TEST_LIST[item])
+            # (self.TEST_LIST[item])
+            # print(self.CHROME_KILL)
             if self.CHROME_KILL == True:
-                print("------kill chrome----")
+                # print("------kill chrome----")
                 runner.kill(self, "Chrome.exe")
-            test = self.path + "\\" + (self.TEST_LIST[item])
-            print("robot -d {} {}".format(self.OUTPUT_PATH, test))
-            os.system("robot -d {} {}".format(self.OUTPUT_PATH, test))
-
+            test = self.path + "\\" + test_name
+            # print("robot -d {} {}".format(self.OUTPUT_PATH, test))
+            status_code = os.system("robot -d {}\\{} {}".format(self.OUTPUT_PATH, test_name, test))
+            Logs.SaveToTemp(self, ("-> {}---> {}\n".format(test_name, status_code)))
+        Logs.ReadTemp(self)
+        self.ShowResultlDialog()
 
 def main():
     app = wx.App(False)
